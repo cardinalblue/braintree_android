@@ -1,19 +1,17 @@
-apply plugin: 'android-sdk-manager'
 apply plugin: 'com.android.library'
-apply plugin: 'maven'
-apply plugin: 'signing'
 
-def paypalVersion = 'PayPalAndroidSDK-2.5.2.jar'
+def paypalVersion = 'PayPalAndroidSDK-2.9.10.jar'
 
 android {
-    compileSdkVersion 19
-    buildToolsVersion '20.0.0'
+    compileSdkVersion rootProject.ext.compileSdkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
 
     defaultConfig {
-        minSdkVersion 8
-        targetSdkVersion 19
-        versionCode 12
-        versionName '1.2.1'
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode rootProject.ext.versionCode
+        versionName rootProject.ext.versionName
+        testInstrumentationRunner 'com.braintreepayments.testutils.ui.NoAnimationsInstrumentationTestRunner'
     }
 
     packagingOptions {
@@ -21,16 +19,35 @@ android {
     }
 }
 
-sdkManager {
-    emulatorVersion 'android-19'
+configurations {
+    lintChecks
 }
 
 dependencies {
     compile 'com.google.code.gson:gson:[2.2.4,3.0)'
+    compile 'com.google.android.gms:play-services-wallet:[7.5.0,8.0.0)'
+
     compile project(':BraintreeData')
     compile files('libs/' + paypalVersion)
 
+    lintChecks project(path: ":Lint", configuration: "lintChecks")
+
     androidTestCompile project(':TestUtils')
+}
+
+task copyLintJar(type: Copy) {
+    from (configurations.lintChecks) {
+        rename {
+            String fileName ->
+                'lint.jar'
+        }
+    }
+    into 'build/intermediates/lint/'
+}
+
+project.afterEvaluate {
+    def compileLintTask = project.tasks.find { it.name == 'compileLint' }
+    compileLintTask.dependsOn(copyLintJar)
 }
 
 task runAllTests {
@@ -44,6 +61,16 @@ task runAllTests {
 gradle.taskGraph.whenReady { taskGraph ->
     def RUN_ALL_TESTS = taskGraph.hasTask(':BraintreeApi:runAllTests')
     android.buildTypes.debug.buildConfigField('boolean', 'RUN_ALL_TESTS', '' + RUN_ALL_TESTS)
+}
+
+task grantAnimationPermission(type: Exec, dependsOn: 'installDebugAndroidTest') {
+    commandLine 'adb shell pm grant com.braintreepayments.api.test android.permission.SET_ANIMATION_SCALE'.split(' ')
+}
+
+tasks.whenTaskAdded { task ->
+    if (task.name.startsWith('connectedAndroidTest')) {
+        task.dependsOn grantAnimationPermission
+    }
 }
 
 /* maven deploy + signing */
@@ -79,7 +106,7 @@ task fullJar(type: Jar, dependsOn: releaseJar) {
     from zipTree(releaseJar.archivePath)
     from {
         configurations.compile.findAll {
-            it.getName() != paypalVersion
+            it.getName() != paypalVersion && !it.getName().startsWith("play-services") && !it.getName().startsWith("support")
         }.collect {
             it.isDirectory() ? null : zipTree(it)
         }
@@ -93,22 +120,9 @@ artifacts {
     archives fullJar
 }
 
-signing {
-    sign configurations.archives
-}
-
-def sonatypeUsername = System.properties.containsKey('sonatypeUsername') ? System.properties['sonatypeUsername'] : ''
-def sonatypePassword = System.properties.containsKey('sonatypePassword') ? System.properties['sonatypePassword'] : ''
-
 uploadArchives {
     repositories {
         mavenDeployer {
-            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
-
-            repository(url: 'https://oss.sonatype.org/service/local/staging/deploy/maven2/') {
-                authentication(userName: sonatypeUsername, password: sonatypePassword)
-            }
-
             pom.setArtifactId 'braintree-api'
 
             pom.project {
@@ -117,26 +131,12 @@ uploadArchives {
                 version = "${android.defaultConfig.versionName}"
                 packaging 'jar'
                 description 'This is Braintree\'s v.zero SDK for Android. Integrate this library to accept payments in your Android app.'
-                url 'https://github.com/braintree/braintree_android'
+            }
 
-                scm {
-                    url 'scm:git@github.com:braintree/braintree_android.git'
-                    connection 'scm:git@github.com:braintree/braintree_android.git'
-                    developerConnection 'scm:git@github.com:braintree/braintree_android.git'
-                }
-
-                developers {
-                    developer {
-                        id 'devs'
-                        name 'Braintree Payments'
-                    }
-                }
-
-                licenses {
-                    license {
-                        name 'MIT'
-                        url 'http://opensource.org/licenses/MIT'
-                        distribution 'repo'
+            pom.whenConfigured { MavenPom pom ->
+                pom.dependencies.each {
+                    if (it.artifactId == 'play-services-wallet') {
+                        it.optional = true
                     }
                 }
             }

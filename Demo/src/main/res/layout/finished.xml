@@ -16,8 +16,16 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:textSize="40sp"
-        android:text="Thank you for your purchase!"
+        android:text="@string/transaction_complete"
         android:layout_margin="30dp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/transaction_id"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textAppearance="?android:attr/textAppearanceSmall"
+        android:layout_marginLeft="30dp"
         android:visibility="gone" />
 
 </LinearLayout>

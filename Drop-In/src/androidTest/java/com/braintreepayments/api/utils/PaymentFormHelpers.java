@@ -1,35 +1,90 @@
 package com.braintreepayments.api.utils;
 
+import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
+import android.support.test.espresso.ViewInteraction;
 import android.view.View;
 
+import com.braintreepayments.api.dropin.BraintreePaymentActivity;
 import com.braintreepayments.api.dropin.R;
-import com.google.android.apps.common.testing.ui.espresso.ViewInteraction;
+import com.braintreepayments.api.dropin.view.LoadingHeader;
+import com.braintreepayments.api.dropin.view.LoadingHeader.HeaderState;
+import com.braintreepayments.api.models.Card;
+import com.braintreepayments.api.models.PaymentMethod;
 
 import org.hamcrest.Matcher;
 
-import static com.braintreepayments.api.ui.Matchers.withHint;
-import static com.braintreepayments.api.ui.Matchers.withId;
-import static com.braintreepayments.api.ui.ViewHelper.TEN_SECONDS;
-import static com.braintreepayments.api.ui.ViewHelper.waitForView;
-import static com.google.android.apps.common.testing.ui.espresso.Espresso.onView;
-import static com.google.android.apps.common.testing.ui.espresso.action.ViewActions.click;
-import static com.google.android.apps.common.testing.ui.espresso.action.ViewActions.typeText;
-import static com.google.android.apps.common.testing.ui.espresso.matcher.ViewMatchers.withText;
+import java.util.Map;
+
+import static android.support.test.espresso.Espresso.onView;
+import static android.support.test.espresso.action.ViewActions.click;
+import static android.support.test.espresso.action.ViewActions.typeText;
+import static android.support.test.espresso.assertion.ViewAssertions.matches;
+import static android.support.test.espresso.matcher.ViewMatchers.isDisplayed;
+import static android.support.test.espresso.matcher.ViewMatchers.withText;
+import static com.braintreepayments.testutils.ActivityResultHelper.getActivityResult;
+import static com.braintreepayments.testutils.CardNumber.VISA;
+import static com.braintreepayments.testutils.ui.Matchers.withHint;
+import static com.braintreepayments.testutils.ui.Matchers.withId;
+import static com.braintreepayments.testutils.ui.ViewHelper.FIFTEEN_SECONDS;
+import static com.braintreepayments.testutils.ui.ViewHelper.TEN_SECONDS;
+import static com.braintreepayments.testutils.ui.ViewHelper.closeSoftKeyboard;
+import static com.braintreepayments.testutils.ui.ViewHelper.waitForView;
+import static com.braintreepayments.testutils.ui.WaitForActivityHelper.waitForActivityToFinish;
+import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertNotNull;
 
 public class PaymentFormHelpers {
 
-    public static void fillInPayPal() {
+    public static void fillInCardForm(Context context) {
+        waitForAddPaymentFormHeader();
+
+        onView(withHint(context.getString(R.string.bt_form_hint_card_number)))
+                .perform(typeText(VISA), closeSoftKeyboard());
+        onView(withHint(context.getString(R.string.bt_form_hint_expiration)))
+                .perform(typeText("0619"), closeSoftKeyboard());
+        onView(withHint(context.getString(R.string.bt_form_hint_cvv)))
+                .perform(typeText("123"), closeSoftKeyboard());
+        onView(withHint(context.getString(R.string.bt_form_hint_postal_code)))
+                .perform(typeText("12345"), closeSoftKeyboard());
+    }
+
+    public static void addCardAndAssertSuccess(Activity activity) {
+        fillInCardForm(activity);
+        onView(withId(R.id.bt_card_form_submit_button)).perform(click());
+
+        waitForView(withId(R.id.bt_header_status_icon));
+
+        LoadingHeader loadingHeader = (LoadingHeader) activity.findViewById(R.id.bt_header_container);
+        assertEquals(HeaderState.SUCCESS, loadingHeader.getCurrentState());
+        onView(withId(R.id.bt_header_container)).check(matches(isDisplayed()));
+
+        waitForActivityToFinish(activity);
+
+        Map<String, Object> result = getActivityResult(activity);
+        PaymentMethod response =
+                (PaymentMethod) ((Intent) result.get("resultData")).getSerializableExtra(
+                        BraintreePaymentActivity.EXTRA_PAYMENT_METHOD);
+
+        assertEquals(Activity.RESULT_OK, result.get("resultCode"));
+        assertNotNull(response.getNonce());
+        assertEquals("11", ((Card) response).getLastTwo());
+    }
+
+    public static void fillInOfflinePayPal() {
         waitForView(withId(R.id.bt_paypal_button)).perform(click());
 
-        waitForView(withHint("Email"));
-        onView(withHint("Email")).perform(typeText("bt_buyer_us@paypal.com"));
+        waitForView(withHint("Email"), FIFTEEN_SECONDS).perform(typeText("test@paypal.com"));
         onView(withHint("Password")).perform(typeText("11111111"));
-        onView(withText("Log In")).perform(click());
+        onView(withHint("Log In")).perform(click());
 
-        waitForView(withText("Agree"));
-        onView(withText("Agree")).perform(click());
+        waitForView(withText("Agree")).perform(click());
+    }
 
-        waitForPaymentMethodList(TEN_SECONDS);
+    public static void performPayPalAdd() {
+        fillInOfflinePayPal();
+        waitForPaymentMethodList();
     }
 
     public static ViewInteraction waitForPaymentMethodList() {

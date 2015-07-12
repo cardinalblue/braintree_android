@@ -12,7 +12,8 @@ import android.os.Build.VERSION;
 import android.provider.Settings.Secure;
 
 import com.braintreepayments.api.BuildConfig;
-import com.braintreepayments.api.Utils;
+import com.google.gson.Gson;
+import com.google.gson.annotations.SerializedName;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -21,47 +22,47 @@ import java.util.UUID;
 
 public class AnalyticsRequest {
 
-    public Analytics[] analytics;
-    public Meta _meta;
+    @SerializedName("analytics") public Analytics[] mAnalytics;
+    @SerializedName("_meta") public Meta mMeta;
 
     public AnalyticsRequest(Context context, String event, String integrationType) {
-        analytics = new Analytics[]{ new Analytics(event) };
-        _meta = new Meta(context, integrationType);
+        mAnalytics = new Analytics[]{ new Analytics(event) };
+        mMeta = new Meta(context, integrationType);
     }
 
     public String toJson() {
-        return Utils.getGson().toJson(this);
+        return new Gson().toJson(this);
     }
 
     private class Analytics {
 
-        private String kind;
+        @SerializedName("kind") private String mKind;
 
         public Analytics(String event) {
-            kind = event;
+            mKind = event;
         }
     }
 
     private class Meta {
 
-        private String platform;
-        private String platformVersion;
-        private String sdkVersion;
-        private String merchantAppId;
-        private String merchantAppName;
-        private String merchantAppVersion;
-        private String deviceRooted;
-        private String deviceManufacturer;
-        private String deviceModel;
-        private String deviceNetworkType;
-        private String androidId;
-        private String deviceAppGeneratedPersistentUuid;
-        private String isSimulator;
-        private String deviceScreenOrientation;
-        private String integrationType;
-        private String userInterfaceOrientation;
+        @SerializedName("platform") private String mPlatform;
+        @SerializedName("platformVersion") private String mPlatformVersion;
+        @SerializedName("sdkVersion") private String mSdkVersion;
+        @SerializedName("merchantAppId") private String mMerchantAppId;
+        @SerializedName("merchantAppName") private String mMerchantAppName;
+        @SerializedName("merchantAppVersion") private String mMerchantAppVersion;
+        @SerializedName("deviceRooted") private String mDeviceRooted;
+        @SerializedName("deviceManufacturer") private String mDeviceManufacturer;
+        @SerializedName("deviceModel") private String mDeviceModel;
+        @SerializedName("deviceNetworkType") private String mDeviceNetworkType;
+        @SerializedName("androidId") private String mAndroidId;
+        @SerializedName("deviceAppGeneratedPersistentUuid") private String mDeviceAppGeneratedPersistentUuid;
+        @SerializedName("isSimulator") private String mIsSimulator;
+        @SerializedName("deviceScreenOrientation") private String mDeviceScreenOrientation;
+        @SerializedName("integrationType") private String mIntegrationType;
+        @SerializedName("userInterfaceOrientation") private String mUserInterfaceOrientation;
 
-        Meta(Context context, String integrationType) {
+        protected Meta(Context context, String integrationType) {
             ApplicationInfo applicationInfo;
             String packageName = context.getPackageName();
             PackageManager packageManager = context.getPackageManager();
@@ -71,21 +72,21 @@ public class AnalyticsRequest {
                 applicationInfo = null;
             }
 
-            platform = "Android";
-            platformVersion = Integer.toString(VERSION.SDK_INT);
-            sdkVersion = BuildConfig.VERSION_NAME;
-            merchantAppId = packageName;
-            merchantAppName = getAppName(applicationInfo, packageManager);
-            merchantAppVersion = getAppVersion(packageManager, packageName);
-            deviceRooted = isDeviceRooted();
-            deviceManufacturer = Build.MANUFACTURER;
-            deviceModel = Build.MODEL;
-            deviceNetworkType = getNetworkType(context);
-            androidId = Secure.getString(context.getContentResolver(), Secure.ANDROID_ID);
-            deviceAppGeneratedPersistentUuid = getUUID(context);
-            isSimulator = detectEmulator();
-            this.integrationType = integrationType;
-            userInterfaceOrientation = getUserOrientation(context);
+            mPlatform = "Android";
+            mPlatformVersion = Integer.toString(VERSION.SDK_INT);
+            mSdkVersion = BuildConfig.VERSION_NAME;
+            mMerchantAppId = packageName;
+            mMerchantAppName = getAppName(applicationInfo, packageManager);
+            mMerchantAppVersion = getAppVersion(packageManager, packageName);
+            mDeviceRooted = isDeviceRooted();
+            mDeviceManufacturer = Build.MANUFACTURER;
+            mDeviceModel = Build.MODEL;
+            mDeviceNetworkType = getNetworkType(context);
+            mAndroidId = Secure.getString(context.getContentResolver(), Secure.ANDROID_ID);
+            mDeviceAppGeneratedPersistentUuid = getUUID(context);
+            mIsSimulator = detectEmulator();
+            mIntegrationType = integrationType;
+            mUserInterfaceOrientation = getUserOrientation(context);
         }
 
         private String getAppName(ApplicationInfo applicationInfo, PackageManager packageManager) {
@@ -145,7 +146,7 @@ public class AnalyticsRequest {
             String uuid = prefs.getString("braintreeUUID", null);
             if (uuid == null) {
                 uuid = UUID.randomUUID().toString().replace("-", "");
-                prefs.edit().putString("braintreeUUID", uuid).commit();
+                prefs.edit().putString("braintreeUUID", uuid).apply();
             }
 
             return uuid;

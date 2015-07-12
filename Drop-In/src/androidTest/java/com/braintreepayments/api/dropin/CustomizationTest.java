@@ -4,25 +4,27 @@ import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.Intent;
 import android.graphics.drawable.ColorDrawable;
+import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
 import android.widget.ImageView;
 
 import com.braintreepayments.api.BraintreeApi;
-import com.braintreepayments.api.TestClientTokenBuilder;
 import com.braintreepayments.api.dropin.Customization.CustomizationBuilder;
 import com.braintreepayments.api.exceptions.BraintreeException;
 import com.braintreepayments.api.exceptions.ErrorWithResponse;
 import com.braintreepayments.api.models.CardBuilder;
+import com.braintreepayments.testutils.TestClientTokenBuilder;
 
-import static com.braintreepayments.api.BraintreeTestUtils.assertBitmapsEqual;
-import static com.braintreepayments.api.ui.Matchers.withId;
-import static com.braintreepayments.api.ui.ViewHelper.waitForView;
+import static android.support.test.espresso.Espresso.onView;
+import static android.support.test.espresso.assertion.ViewAssertions.matches;
+import static android.support.test.espresso.matcher.ViewMatchers.isDisplayed;
+import static android.support.test.espresso.matcher.ViewMatchers.withText;
 import static com.braintreepayments.api.utils.PaymentFormHelpers.waitForAddPaymentFormHeader;
 import static com.braintreepayments.api.utils.PaymentFormHelpers.waitForPaymentMethodList;
-import static com.google.android.apps.common.testing.ui.espresso.Espresso.onView;
-import static com.google.android.apps.common.testing.ui.espresso.assertion.ViewAssertions.matches;
-import static com.google.android.apps.common.testing.ui.espresso.matcher.ViewMatchers.isDisplayed;
-import static com.google.android.apps.common.testing.ui.espresso.matcher.ViewMatchers.withText;
+import static com.braintreepayments.testutils.CardNumber.VISA;
+import static com.braintreepayments.testutils.ui.Assertions.assertBitmapsEqual;
+import static com.braintreepayments.testutils.ui.Matchers.withId;
+import static com.braintreepayments.testutils.ui.ViewHelper.waitForView;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -61,16 +63,16 @@ public class CustomizationTest extends BraintreePaymentActivityTestCase {
         getActivity();
 
         waitForAddPaymentFormHeader();
-        onView(withId(R.id.bt_card_form_submit_button)).check(matches(withText("$19 - Subscribe")));
+        onView(withId(R.id.bt_card_form_submit_button)).check(matches(withText("$19 - SUBSCRIBE")));
     }
 
     public void testSubmitButtonUsesCustomizationForSelectPaymentMethodIfIncludedAsAnExtra()
             throws ErrorWithResponse, BraintreeException {
         String clientToken = new TestClientTokenBuilder().build();
-        BraintreeApi api = new BraintreeApi(getInstrumentation().getContext(), clientToken);
+        BraintreeApi api = new BraintreeApi(mContext, clientToken);
         api.create(new CardBuilder()
-                        .cardNumber("4111111111111111")
-                        .expirationDate("08/19"));
+                .cardNumber(VISA)
+                .expirationDate("0819"));
 
         Intent intent = createIntent();
         Customization customization = new CustomizationBuilder()
@@ -83,7 +85,7 @@ public class CustomizationTest extends BraintreePaymentActivityTestCase {
         getActivity();
 
         waitForPaymentMethodList();
-        onView(withId(R.id.bt_select_payment_method_submit_button)).check(matches(withText("$19 - Subscribe")));
+        onView(withId(R.id.bt_select_payment_method_submit_button)).check(matches(withText("$19 - SUBSCRIBE")));
     }
 
     public void testDescriptionsAreDisplayedIfIncludedAsAnExtra() {
@@ -118,7 +120,7 @@ public class CustomizationTest extends BraintreePaymentActivityTestCase {
         getActivity();
 
         waitForAddPaymentFormHeader();
-        onView(withId(R.id.bt_card_form_submit_button)).check(matches(withText("$19 - Purchase")));
+        onView(withId(R.id.bt_card_form_submit_button)).check(matches(withText("$19 - PURCHASE")));
     }
 
     @TargetApi(VERSION_CODES.HONEYCOMB)
@@ -135,11 +137,12 @@ public class CustomizationTest extends BraintreePaymentActivityTestCase {
 
         assertEquals("This is a title", activity.getActionBar().getTitle());
 
-        ImageView actual = (ImageView) activity.findViewById(android.R.id.home);
-        assertBitmapsEqual(actual.getDrawable(),
-                getInstrumentation().getContext().getResources()
-                        .getDrawable(android.R.drawable.ic_delete)
-        );
+        if (VERSION.SDK_INT < VERSION_CODES.LOLLIPOP) {
+            ImageView actual = (ImageView) activity.findViewById(android.R.id.home);
+            assertBitmapsEqual(actual.getDrawable(),
+                    mContext.getResources().getDrawable(android.R.drawable.ic_delete)
+            );
+        }
     }
 
     @TargetApi(VERSION_CODES.HONEYCOMB)
@@ -154,14 +157,17 @@ public class CustomizationTest extends BraintreePaymentActivityTestCase {
         Activity activity = getActivity();
 
         assertEquals("Purchase", activity.getActionBar().getTitle());
-        ImageView actual = (ImageView) activity.findViewById(android.R.id.home);
-        ColorDrawable expected = new ColorDrawable(getInstrumentation().getContext().getResources()
-                        .getColor(android.R.color.transparent));
-        assertEquals(actual.getDrawable().getOpacity(), expected.getOpacity());
+
+        if (VERSION.SDK_INT < VERSION_CODES.LOLLIPOP) {
+            ImageView actual = (ImageView) activity.findViewById(android.R.id.home);
+            ColorDrawable expected = new ColorDrawable(mContext.getResources().getColor(
+                    android.R.color.transparent));
+            assertEquals(actual.getDrawable().getOpacity(), expected.getOpacity());
+        }
     }
 
     private Intent createIntent() {
-        return new Intent(getInstrumentation().getContext(), BraintreePaymentActivity.class);
+        return new Intent(mContext, BraintreePaymentActivity.class);
     }
 
 }

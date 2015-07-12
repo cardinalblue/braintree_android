@@ -2,30 +2,37 @@
 
 This document outlines development practices that we follow internally while developing this SDK.
 
+## Setup
+
+* Make sure Java 7 is installed and available in your `PATH`.
+* If you do not have the Android SDK installed, run `./gradlew build` 3 times to download the Android SDK and install all required tools as well as set your `local.properties` file (we use [sdk-manager-plugin](https://github.com/JakeWharton/sdk-manager-plugin) to do this automatically).
+* If you do have the Android SDK installed, add a `local.properties` file to the top level directory with `sdk.dir=/path/to/your/sdk/.android-sdk`
+* Run `./gradlew :Demo:installDebug` to install the [Demo](Demo) app on a device.
+* See [the testing section](#tests) for more about setting up and running tests.
+
 ## Development Merchant Server
 
-The included demo app utilizes a test merchant server hosted on heroku ([https://braintree-sample-merchant.herokuapp.com](https://braintree-sample-merchant.herokuapp.com)). It produces client tokens that point to Braintree's Sandbox Environment.
+The included demo app utilizes a test merchant server hosted on heroku ([https://braintree-sample-merchant.herokuapp.com](https://braintree-sample-merchant.herokuapp.com)).
+It produces client tokens that point to Braintree's Sandbox Environment.
 
-This merchant server is also provided as a gem called [taproot](https://github.com/benmills/taproot/). If you'd like, you can run taproot locally and hit a development Gateway running on `localhost`:
-
-```
-git clone https://github.com/benmills/taproot.git
-cd taproot
-bundle
-taprootd
-
-# In a new shell
-curl localhost:3132
-curl localhost:3132/client_token
-```
-
-You can now change the merchant server base URL specified in `Drop-InSample/src/main/java/com/braintreepayments/sample/BaseActivity.java`.
+You can also host a locally running Gateway and/or merchant server.
 
 ## Tests
 
-You can run all tests on the command line with `bundle && rake`.
+All tests can be run on the command line with `rake`. It's a good idea to run `rake`, before committing.
 
-It's a good idea to run `rake`, which runs all tests, before committing.
+If you are running tests on an emulator or need to point at a specific url, the following can be set in the top level `gradle.properties` file:
+
+```
+// defaults to 10.0.2.2
+systemProp.LOCALHOST_IP="URL_OR_IP_OF_YOUR_LOCALHOST"
+
+// defaults to 10.0.2.2
+systemProp.GATEWAY_IP="URL_OR_IP_OF_YOUR_GATEWAY"
+
+// defaults to 3000
+systemProp.GATEWAY_PORT="PORT_OF_YOUR_GATEWAY"
+```
 
 Please note: It is not currently possible to run tests outside of Braintree.
 
@@ -36,25 +43,27 @@ There are several components that comprise this SDK:
 * [BraintreeApi](BraintreeApi) provides the networking and communication layer. Includes the PayPal Android mobile SDK.
 * [BraintreeData](BraintreeData) collects and provides data for fraud detection.
 * [Drop-In](Drop-In) uses `BraintreeApi` to create a full checkout experience inside an `Activity`.
-* [Drop-InSample](Drop-InSample) the reference integration of [Drop-In](Drop-In)
+* [Demo](Demo) is the reference integration of [Drop-In](Drop-In).
+* [FakeWallet](FakeWallet) is used to test the app switch portion of the SDK.
+* [TestUtils](TestUtils) contains common test code used between modules.
 
-The individual components may be of interest for advanced integrations and are each available as modules.
+The individual components may be of interest for advanced integrations and are each available as modules in maven.
 
 ## Environmental Assumptions
 
-* Android Studio 0.8.x and Android 19
-* Android 19 target sdk
+* Java 7
+* Android Studio
 * Gradle
+* Android SDK >= 10
 * Host app does not integrate the [PayPal Android SDK](https://github.com/paypal/PayPal-Android-SDK)
 * Host app does not integrate with the Kount SDK
-* Host app does not integrate with [card.io](https://www.card.io/)
-* Host app has a secure, authenticated server with a [Braintree server-side integration](https://developers.braintreepayments.com/ios/start/hello-server)
+* Host app has a secure, authenticated server with a [Braintree server-side integration](https://developers.braintreepayments.com/android/start/hello-server)
 
 ## Committing
 
 * Commits should be small but atomic. Tests should always be passing; the product should always function appropriately.
 * Commit messages should be concise and descriptive.
-* Commit messages reference the trello board by ID or URL. (Sorry, these are not externally viewable.)
+* Commit messages may reference the trello board by ID or URL. (Sorry, these are not externally viewable.)
 
 ## Deployment and Code Organization
 

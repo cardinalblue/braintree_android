@@ -4,6 +4,8 @@ import android.app.Instrumentation;
 import android.app.KeyguardManager;
 import android.content.Context;
 import android.os.SystemClock;
+import android.support.test.espresso.FailureHandler;
+import android.support.test.espresso.base.DefaultFailureHandler;
 import android.test.ActivityInstrumentationTestCase2;
 import android.util.Log;
 import android.view.View;
@@ -11,16 +13,16 @@ import android.view.View;
 import com.braintreepayments.api.Braintree;
 import com.braintreepayments.api.SignatureVerification;
 import com.braintreepayments.api.internal.HttpRequest;
-import com.braintreepayments.api.ui.ViewHelper;
-import com.google.android.apps.common.testing.ui.espresso.FailureHandler;
-import com.google.android.apps.common.testing.ui.espresso.base.DefaultFailureHandler;
+import com.braintreepayments.testutils.ui.ViewHelper;
 
 import org.hamcrest.Matcher;
 
-import static com.google.android.apps.common.testing.ui.espresso.Espresso.setFailureHandler;
+import static android.support.test.espresso.Espresso.setFailureHandler;
 
 public class BraintreePaymentActivityTestCase extends
         ActivityInstrumentationTestCase2<BraintreePaymentActivity> {
+
+    protected Context mContext;
 
     public BraintreePaymentActivityTestCase() {
         super(BraintreePaymentActivity.class);
@@ -36,6 +38,8 @@ public class BraintreePaymentActivityTestCase extends
         KeyguardManager keyguardManager = (KeyguardManager)
                 getInstrumentation().getContext().getSystemService(Context.KEYGUARD_SERVICE);
         keyguardManager.newKeyguardLock("BraintreePaymentActivity").disableKeyguard();
+
+        mContext = getInstrumentation().getContext();
     }
 
     @Override
@@ -61,6 +65,8 @@ public class BraintreePaymentActivityTestCase extends
                 Log.d("request_screenshot", mTestCase.getClass().getSimpleName() + "#"
                         + mTestCase.getName() + "-" + System.currentTimeMillis());
                 SystemClock.sleep(500);
+            } else {
+                SystemClock.sleep(20);
             }
             mDelegate.handle(error, viewMatcher);
         }

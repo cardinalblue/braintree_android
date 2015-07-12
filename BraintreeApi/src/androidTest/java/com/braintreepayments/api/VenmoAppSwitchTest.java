@@ -5,15 +5,17 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.test.AndroidTestCase;
 
+import com.braintreepayments.api.models.Configuration;
+import com.braintreepayments.testutils.TestClientTokenBuilder;
+
 public class VenmoAppSwitchTest extends AndroidTestCase {
 
     private VenmoAppSwitch mVenmoAppSwitch;
 
     @Override
     public void setUp() {
-        ClientToken token = ClientToken.getClientToken(new TestClientTokenBuilder().build());
-
-        mVenmoAppSwitch = new VenmoAppSwitch(getContext(), token);
+        Configuration configuration = Configuration.fromJson(new TestClientTokenBuilder().build());
+        mVenmoAppSwitch = new VenmoAppSwitch(getContext(), configuration);
     }
 
     public void testGetPackage() {
@@ -41,20 +43,21 @@ public class VenmoAppSwitchTest extends AndroidTestCase {
 
         assertEquals(new ComponentName("com.venmo", "com.venmo.CardChooserActivity"),
                 intent.getComponent());
-        assertEquals("integration2_merchant_id", intent.getStringExtra(VenmoAppSwitch.EXTRA_MERCHANT_ID));
+        assertEquals("integration2_merchant_id", intent.getStringExtra(
+                VenmoAppSwitch.EXTRA_MERCHANT_ID));
     }
 
     public void testIntentIncludesVenmoEnvironment() {
-        ClientToken token = ClientToken.getClientToken(new TestClientTokenBuilder().withOfflineVenmo().build());
-        VenmoAppSwitch venmoAppSwitch = new VenmoAppSwitch(getContext(), token);
+        Configuration configuration = Configuration.fromJson(new TestClientTokenBuilder().withOfflineVenmo().build());
+        VenmoAppSwitch venmoAppSwitch = new VenmoAppSwitch(getContext(), configuration);
         Intent intent = venmoAppSwitch.getLaunchIntent();
 
         assertTrue(intent.getBooleanExtra(AppSwitch.EXTRA_OFFLINE, false));
     }
 
     public void testIntentIncludesLiveVenmoEnvironment() {
-        ClientToken token = ClientToken.getClientToken(new TestClientTokenBuilder().withLiveVenmo().build());
-        VenmoAppSwitch venmoAppSwitch = new VenmoAppSwitch(getContext(), token);
+        Configuration configuration = Configuration.fromJson(new TestClientTokenBuilder().withLiveVenmo().build());
+        VenmoAppSwitch venmoAppSwitch = new VenmoAppSwitch(getContext(), configuration);
         Intent intent = venmoAppSwitch.getLaunchIntent();
 
         assertFalse(intent.getBooleanExtra(AppSwitch.EXTRA_OFFLINE, true));
@@ -73,5 +76,15 @@ public class VenmoAppSwitchTest extends AndroidTestCase {
 
     public void testHandleResponseReturnsNullOnUnsuccessfulResultCode() {
         assertNull(mVenmoAppSwitch.handleAppSwitchResponse(Activity.RESULT_CANCELED, new Intent()));
+    }
+
+    public void testIsVenmoAppSwitchResponseReturnsTrueForAppSwitchResponses() {
+        Intent intent = new Intent().putExtra(AppSwitch.EXTRA_PAYMENT_METHOD_NONCE, "");
+
+        assertTrue(VenmoAppSwitch.isVenmoAppSwitchResponse(intent));
+    }
+
+    public void testIsVenmoAppSwitchResponseReturnsFalseForNonAppSwitchResponses() {
+        assertFalse(VenmoAppSwitch.isVenmoAppSwitchResponse(new Intent()));
     }
 }

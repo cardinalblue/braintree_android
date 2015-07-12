@@ -12,6 +12,8 @@ gateway_path="$PWD/../$JOB_NAME-gateway"
 gateway_pid="/tmp/$JOB_NAME-gateway-server"
 gateway_port=3000
 
+emulator_started_at=0
+
 cd_android() {
   cd $android_path
 }
@@ -43,14 +45,13 @@ start_gateway() {
 }
 
 stop_gateway() {
+  cd_gateway
   if [ -f $gateway_pid ];  then
     bundle exec thin --pid "$gateway_pid" stop
   fi
 }
 
-build_cleanup() {
-  cd_gateway
-  stop_gateway
+cleanup_android() {
   $android_adb emu kill
   $android_adb kill-server
   kill -9 `cat /tmp/httpsd.pid`
@@ -65,33 +66,43 @@ start_adb() {
 
 start_emulator() {
   echo "Creating emulator"
-  echo no | $ANDROID_HOME/tools/android create avd --force -n android19 -t android-19 --abi armeabi-v7a
+  echo no | $ANDROID_HOME/tools/android create avd --force -n braintree-android -t android-22 --abi armeabi-v7a --skin WXGA720
+  echo "hw.keyboard=yes" >> ~/.android/avd/braintree-android.avd/config.ini
   echo "Starting emulator"
-  $ANDROID_HOME/tools/emulator -avd android19 -no-boot-anim -wipe-data -no-audio -no-window &
+  $ANDROID_HOME/tools/emulator -avd braintree-android -no-boot-anim -wipe-data -no-audio -no-window &
+  emulator_started_at=$(date +%s)
 }
 
 wait_for_emulator() {
-  echo "Waiting for emulator to start"
-  $android_adb wait-for-device
-
   # This is a hack - wait-for-device just checks power on.
   # By polling until the package manager is ready, we can make sure a device is actually booted
   # before attempting to run tests.
-  echo "Waiting for device package manager to load"
-  while [[ `$android_adb shell pm path android` == 'Error'* ]]; do
+  echo "Waiting for emulator to start and package manager to load"
+  adb_output=$(($android_adb shell pm path android) 2>&1)
+  while [[ $adb_output == *'error'* ]]; do
+    if [ $(($emulator_started_at + 900)) -lt $(date +%s) ]; then
+      cleanup_android
+      stop_gateway
+      exit 1
+    fi
+
     sleep 2
+    adb_output=$(($android_adb shell pm path android) 2>&1)
   done
-  echo "Emulator fully armed and operational, starting tests"
+  echo "Emulator ready, starting tests"
 }
 
-# Build twice, the first build will resolve dependencies via sdk-manager-plugin and then fail
+# Build three times, the first two builds will resolve dependencies via sdk-manager-plugin and then fail
 # https://github.com/JakeWharton/sdk-manager-plugin/issues/10
+$android_path/gradlew --info --no-color clean assembleDebug
 $android_path/gradlew --info --no-color clean assembleDebug
 $android_path/gradlew --info --no-color clean lint
 lint_return_code=$?
 if [ $lint_return_code -ne 0 ]; then
   exit 1
 fi
+
+cleanup_android
 
 cd_android
 start_adb
@@ -106,12 +117,13 @@ cd_android
 wait_for_emulator
 
 ruby script/httpsd.rb /tmp/httpsd.pid
-ruby log_listener.rb &
+ruby script/log_listener.rb &
 log_listener_pid=$!
 
-$android_path/gradlew --info --no-color runAllTests connectedAndroidTest
+$android_path/gradlew --info --continue --no-color runAllTests :BraintreeData:connectedAndroidTest :BraintreeApi:connectedAndroidTest
 test_return_code=$?
 
-build_cleanup
+cleanup_android
+stop_gateway
 
 exit $test_return_code;

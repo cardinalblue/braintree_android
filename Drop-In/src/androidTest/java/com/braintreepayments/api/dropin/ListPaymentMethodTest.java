@@ -6,46 +6,50 @@ import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
+import android.os.Build.VERSION;
+import android.os.Build.VERSION_CODES;
 import android.os.SystemClock;
+import android.support.test.espresso.NoMatchingViewException;
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 
 import com.braintreepayments.api.BraintreeApi;
-import com.braintreepayments.api.BraintreeTestUtils;
-import com.braintreepayments.api.TestClientTokenBuilder;
+import com.braintreepayments.api.exceptions.BraintreeException;
 import com.braintreepayments.api.exceptions.ErrorWithResponse;
-import com.braintreepayments.api.exceptions.UnexpectedException;
-import com.braintreepayments.api.internal.HttpRequest;
 import com.braintreepayments.api.models.Card;
 import com.braintreepayments.api.models.CardBuilder;
 import com.braintreepayments.api.models.PayPalAccountBuilder;
 import com.braintreepayments.api.models.PaymentMethod;
-import com.google.android.apps.common.testing.ui.espresso.NoMatchingViewException;
+import com.braintreepayments.testutils.TestClientTokenBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static com.braintreepayments.api.BraintreeTestUtils.assertSelectedPaymentMethodIs;
-import static com.braintreepayments.api.BraintreeTestUtils.injectSlowBraintree;
+import static android.support.test.espresso.Espresso.onView;
+import static android.support.test.espresso.action.ViewActions.click;
+import static android.support.test.espresso.assertion.ViewAssertions.doesNotExist;
+import static android.support.test.espresso.assertion.ViewAssertions.matches;
+import static android.support.test.espresso.matcher.ViewMatchers.hasSibling;
+import static android.support.test.espresso.matcher.ViewMatchers.isDisplayed;
+import static android.support.test.espresso.matcher.ViewMatchers.withContentDescription;
+import static android.support.test.espresso.matcher.ViewMatchers.withText;
 import static com.braintreepayments.api.BraintreeTestUtils.setUpActivityTest;
-import static com.braintreepayments.api.ui.Matchers.withId;
-import static com.braintreepayments.api.ui.WaitForActivityHelper.waitForActivity;
+import static com.braintreepayments.api.BraintreeTestUtils.unexpectedExceptionThrowingApi;
+import static com.braintreepayments.api.TestDependencyInjector.injectBraintree;
+import static com.braintreepayments.api.TestDependencyInjector.injectSlowBraintree;
+import static com.braintreepayments.api.utils.Assertions.assertSelectedPaymentMethodIs;
 import static com.braintreepayments.api.utils.PaymentFormHelpers.onAddPaymentFormHeader;
 import static com.braintreepayments.api.utils.PaymentFormHelpers.waitForAddPaymentFormHeader;
 import static com.braintreepayments.api.utils.PaymentFormHelpers.waitForPaymentMethodList;
-import static com.google.android.apps.common.testing.ui.espresso.Espresso.onView;
-import static com.google.android.apps.common.testing.ui.espresso.action.ViewActions.click;
-import static com.google.android.apps.common.testing.ui.espresso.assertion.ViewAssertions.doesNotExist;
-import static com.google.android.apps.common.testing.ui.espresso.assertion.ViewAssertions.matches;
-import static com.google.android.apps.common.testing.ui.espresso.matcher.ViewMatchers.hasSibling;
-import static com.google.android.apps.common.testing.ui.espresso.matcher.ViewMatchers.isDisplayed;
-import static com.google.android.apps.common.testing.ui.espresso.matcher.ViewMatchers.withText;
-import static org.hamcrest.Matchers.allOf;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static com.braintreepayments.testutils.ActivityResultHelper.getActivityResult;
+import static com.braintreepayments.testutils.CardNumber.AMEX;
+import static com.braintreepayments.testutils.CardNumber.VISA;
+import static com.braintreepayments.testutils.CardNumber.VISA_2;
+import static com.braintreepayments.testutils.ui.Matchers.withId;
+import static com.braintreepayments.testutils.ui.WaitForActivityHelper.waitForActivityToFinish;
+import static org.hamcrest.CoreMatchers.allOf;
 
 @SuppressLint("NewApi")
 public class ListPaymentMethodTest extends BraintreePaymentActivityTestCase {
@@ -56,10 +60,11 @@ public class ListPaymentMethodTest extends BraintreePaymentActivityTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        mBraintreeApi = new BraintreeApi(getInstrumentation().getContext(),
-                setUpActivityTest(this, new TestClientTokenBuilder().withFakePayPal().build()));
+        String clientToken = new TestClientTokenBuilder().withFakePayPal().build();
+        setUpActivityTest(this, clientToken);
+        mBraintreeApi = new BraintreeApi(mContext, clientToken);
         mBraintreeApi.create(new CardBuilder()
-                .cardNumber("4111111111111111")
+                .cardNumber(VISA)
                 .expirationMonth("01")
                 .expirationYear("2018"));
     }
@@ -68,23 +73,24 @@ public class ListPaymentMethodTest extends BraintreePaymentActivityTestCase {
         SystemClock.sleep(1000);
 
         return mBraintreeApi.create(new CardBuilder()
-                .cardNumber("378282246310005")
+                .cardNumber(AMEX)
                 .expirationMonth("01")
                 .expirationYear("2019")).getNonce();
     }
 
     public void testDisplaysALoadingViewWhileGettingPaymentMethods() {
-        String clientToken = new TestClientTokenBuilder().withPayPal().build();
-        injectSlowBraintree(getInstrumentation().getContext(), clientToken, 4000);
+        String clientToken = new TestClientTokenBuilder().build();
+        injectSlowBraintree(mContext, clientToken, 4000);
         setUpActivityTest(this, clientToken);
         Activity activity = getActivity();
 
-        assertEquals(View.VISIBLE, activity.findViewById(R.id.bt_loading_progress_bar).getVisibility());
+        assertEquals(View.VISIBLE,
+                activity.findViewById(R.id.bt_loading_progress_bar).getVisibility());
     }
 
     public void testLoadingPaymentMethodsTimesOutAfterTenSecondsAndDropsToAddPaymentMethodForm() {
-        String clientToken = new TestClientTokenBuilder().withPayPal().build();
-        injectSlowBraintree(getInstrumentation().getContext(), clientToken, 11000);
+        String clientToken = new TestClientTokenBuilder().build();
+        injectSlowBraintree(mContext, clientToken, 11000);
         setUpActivityTest(this, clientToken);
         getActivity();
 
@@ -92,19 +98,15 @@ public class ListPaymentMethodTest extends BraintreePaymentActivityTestCase {
     }
 
     public void testFallsBackToAddPaymentMethodFormIfLoadingPaymentMethodsBlowsUp()
-            throws UnexpectedException {
-        String clientToken = new TestClientTokenBuilder().withPayPal().build();
-        HttpRequest mockRequest = mock(HttpRequest.class);
-        when(mockRequest.get(anyString())).thenThrow(new UnexpectedException("Mocked HTTP request"));
-        when(mockRequest.post(anyString(), anyString())).thenThrow(new UnexpectedException("Mocked HTTP request"));
-        BraintreeTestUtils
-                .injectBraintree(getInstrumentation().getContext(), clientToken, mockRequest);
-
+            throws BraintreeException, ErrorWithResponse {
+        String clientToken = new TestClientTokenBuilder().build();
+        injectBraintree(clientToken, unexpectedExceptionThrowingApi(mContext));
         setUpActivityTest(this, clientToken);
         long testStartTime = System.currentTimeMillis();
-        getActivity();
 
+        getActivity();
         waitForAddPaymentFormHeader();
+
         long elapsedTestTime = System.currentTimeMillis() - testStartTime;
         assertTrue(elapsedTestTime < 5000);
     }
@@ -142,7 +144,8 @@ public class ListPaymentMethodTest extends BraintreePaymentActivityTestCase {
 
         waitForPaymentMethodList();
 
-        onView(withId(R.id.bt_change_payment_method_link)).check(matches(withText(R.string.bt_change_payment_method)));
+        onView(withId(R.id.bt_change_payment_method_link)).check(
+                matches(withText(R.string.bt_change_payment_method)));
     }
 
     public void testNoopsWhenClickingPaymentMethodAndOnlyOneExists() {
@@ -155,8 +158,7 @@ public class ListPaymentMethodTest extends BraintreePaymentActivityTestCase {
         try {
             onView(withText(R.string.bt_choose_payment_method)).check(doesNotExist());
             onView(withId(R.id.bt_card_form_card_number)).check(doesNotExist());
-        } catch (NoMatchingViewException e) {
-            // noop
+        } catch (NoMatchingViewException ignored) {
         }
     }
 
@@ -232,11 +234,11 @@ public class ListPaymentMethodTest extends BraintreePaymentActivityTestCase {
         assertSelectedPaymentMethodIs(R.string.bt_descriptor_visa);
     }
 
-    public void testSelectingFromListSetsActivePaymentForSubmit()
+    public void testSelectingFromListReturnsSelectedPaymentMethod()
             throws IOException, ErrorWithResponse {
         String nonce = createAmex();
         mBraintreeApi.create(new CardBuilder()
-                .cardNumber("4005519200000004")
+                .cardNumber(VISA_2)
                 .expirationMonth("02")
                 .expirationYear("2029"));
         BraintreePaymentActivity activity = getActivity();
@@ -250,7 +252,15 @@ public class ListPaymentMethodTest extends BraintreePaymentActivityTestCase {
         onView(withText("Choose Payment Method")).check(doesNotExist());
         onView(withId(R.id.bt_select_payment_method_submit_button)).perform(click());
 
-        assertEquals(nonce, activity.getActivePaymentMethod().getNonce());
+        waitForActivityToFinish(activity);
+
+        Map<String, Object> result = getActivityResult(activity);
+        PaymentMethod response =
+                (PaymentMethod) ((Intent) result.get("resultData")).getSerializableExtra(
+                        BraintreePaymentActivity.EXTRA_PAYMENT_METHOD);
+
+        assertEquals(Activity.RESULT_OK, result.get("resultCode"));
+        assertEquals(nonce, response.getNonce());
     }
 
     public void testSubmittingSelectedPaymentMethodReturnsItToCallingActivity()
@@ -260,9 +270,9 @@ public class ListPaymentMethodTest extends BraintreePaymentActivityTestCase {
         waitForPaymentMethodList();
         onView(withId(R.id.bt_select_payment_method_submit_button)).perform(click());
 
-        waitForActivity(activity);
+        waitForActivityToFinish(activity);
 
-        Map<String, Object> result = BraintreeTestUtils.getActivityResult(activity);
+        Map<String, Object> result = getActivityResult(activity);
         PaymentMethod response =
                 (PaymentMethod) ((Intent) result.get("resultData")).getSerializableExtra(
                         BraintreePaymentActivity.EXTRA_PAYMENT_METHOD);
@@ -303,7 +313,11 @@ public class ListPaymentMethodTest extends BraintreePaymentActivityTestCase {
         onView(withId(R.id.bt_change_payment_method_link)).perform(click());
 
         onAddPaymentFormHeader().check(matches(isDisplayed()));
-        onView(withId(android.R.id.home)).perform(click());
+        if (VERSION.SDK_INT > VERSION_CODES.KITKAT) {
+            onView(withContentDescription("Navigate up")).perform(click());
+        } else {
+            onView(withId(android.R.id.home)).perform(click());
+        }
 
         onView(withId(R.id.bt_change_payment_method_link)).check(matches(isDisplayed()));
         assertFalse("Expected up not to be set on action bar",

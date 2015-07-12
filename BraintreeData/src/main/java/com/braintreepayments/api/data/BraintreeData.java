@@ -1,9 +1,11 @@
 package com.braintreepayments.api.data;
 
 import android.app.Activity;
+import android.content.Context;
 
 import com.devicecollector.DeviceCollector;
 
+import java.lang.reflect.Method;
 import java.util.UUID;
 
 /**
@@ -13,7 +15,8 @@ public final class BraintreeData {
 
     private String mFraudMerchantId;
     private String mDeviceSessionId;
-    private DeviceCollector deviceCollector;
+    private String mCorrelationId;
+    private DeviceCollector mDeviceCollector;
 
     /**
      * Creates a new BraintreeData instance for fraud detection.
@@ -35,10 +38,10 @@ public final class BraintreeData {
      */
     public BraintreeData(Activity activity, String fraudMerchantId, String collectorUrl) {
         mFraudMerchantId = fraudMerchantId;
-
-        deviceCollector = new DeviceCollector(activity);
-        deviceCollector.setMerchantId(mFraudMerchantId);
-        deviceCollector.setCollectorUrl(collectorUrl);
+        mCorrelationId = getCorrelationId(activity);
+        mDeviceCollector = new DeviceCollector(activity);
+        mDeviceCollector.setMerchantId(mFraudMerchantId);
+        mDeviceCollector.setCollectorUrl(collectorUrl);
     }
 
     /**
@@ -48,11 +51,28 @@ public final class BraintreeData {
     public String collectDeviceData() {
         if(mDeviceSessionId == null) {
             mDeviceSessionId = UUID.randomUUID().toString().replace("-", "");
-            deviceCollector.collect(mDeviceSessionId);
+            mDeviceCollector.collect(mDeviceSessionId);
         }
 
-        return "{\"device_session_id\": \"" + mDeviceSessionId
-                + "\", \"fraud_merchant_id\": \"" + mFraudMerchantId + "\"}";
+        String data = "{\"device_session_id\":\"" + mDeviceSessionId + "\"," +
+                "\"fraud_merchant_id\":\"" + mFraudMerchantId + "\"";
+        if (mCorrelationId != null) {
+            data += ",\"correlation_id\":\"" + mCorrelationId + "\"}";
+        } else {
+            data += "}";
+        }
+        return data;
+    }
+
+    private String getCorrelationId(Activity activity) {
+        try {
+            Method method = getClass().getClassLoader()
+                    .loadClass("com.paypal.android.sdk.payments.PayPalConfiguration")
+                    .getMethod("getClientMetadataId", Context.class);
+            return (String) method.invoke(null, activity);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
 }

@@ -8,15 +8,20 @@ import junit.framework.TestCase;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import static com.braintreepayments.testutils.CardNumber.VISA;
+
 public class CardBuilderTest extends TestCase {
 
     private static final String CREDIT_CARD_KEY = "creditCard";
+    public static final String BILLING_ADDRESS_KEY = "billingAddress";
 
     public void testBuildsACardCorrectly() throws JSONException {
-        CardBuilder cardBuilder = new CardBuilder().cardNumber("41111111111111111")
+        CardBuilder cardBuilder = new CardBuilder().cardNumber(VISA)
                 .cvv("123")
                 .expirationMonth("01")
                 .expirationYear("2015")
+                .firstName("Joe")
+                .lastName("Smith")
                 .streetAddress("1 Main St")
                 .locality("Some Town")
                 .postalCode("12345")
@@ -25,32 +30,35 @@ public class CardBuilderTest extends TestCase {
 
         JSONObject json = new JSONObject(cardBuilder.toJsonString());
         JSONObject jsonCard = json.getJSONObject(CREDIT_CARD_KEY);
+        JSONObject jsonBillingAddress = jsonCard.getJSONObject(BILLING_ADDRESS_KEY);
         JSONObject jsonMetadata = json.getJSONObject(Builder.METADATA_KEY);
 
-        assertEquals("41111111111111111", jsonCard.getString("number"));
+        assertEquals(VISA, jsonCard.getString("number"));
         assertEquals("123", jsonCard.getString("cvv"));
         assertEquals("01", jsonCard.getString("expirationMonth"));
         assertEquals("2015", jsonCard.getString("expirationYear"));
-        assertEquals("1 Main St",
-                jsonCard.getJSONObject("billingAddress").getString("streetAddress"));
-        assertEquals("Some Town", jsonCard.getJSONObject("billingAddress").getString("locality"));
-        assertEquals("12345", jsonCard.getJSONObject("billingAddress").getString("postalCode"));
-        assertEquals("Some Region", jsonCard.getJSONObject("billingAddress").getString("region"));
-        assertEquals("Some Country",
-                jsonCard.getJSONObject("billingAddress").getString("countryName"));
+
+        assertEquals("Joe", jsonBillingAddress.getString("firstName"));
+        assertEquals("Smith", jsonBillingAddress.getString("lastName"));
+        assertEquals("1 Main St", jsonBillingAddress.getString("streetAddress"));
+        assertEquals("Some Town", jsonBillingAddress.getString("locality"));
+        assertEquals("12345", jsonBillingAddress.getString("postalCode"));
+        assertEquals("Some Region", jsonBillingAddress.getString("region"));
+        assertEquals("Some Country", jsonBillingAddress.getString("countryName"));
+
         assertEquals("custom", jsonMetadata.getString("integration"));
         assertEquals("form", jsonMetadata.getString("source"));
     }
 
     public void testBuildsWithAnExpirationDateCorrectly() throws JSONException {
-        CardBuilder cardBuilder = new CardBuilder().cardNumber("41111111111111111")
+        CardBuilder cardBuilder = new CardBuilder().cardNumber(VISA)
                 .cvv("123")
                 .expirationDate("01/15")
                 .postalCode("12345");
 
         JSONObject jsonCard = new JSONObject(cardBuilder.toJsonString()).getJSONObject(CREDIT_CARD_KEY);
 
-        assertEquals("41111111111111111", jsonCard.getString("number"));
+        assertEquals(VISA, jsonCard.getString("number"));
         assertEquals("123", jsonCard.getString("cvv"));
         assertEquals("01/15", jsonCard.getString("expirationDate"));
         assertEquals("12345", jsonCard.getJSONObject("billingAddress").getString("postalCode"));
@@ -60,13 +68,16 @@ public class CardBuilderTest extends TestCase {
         CardBuilder cardBuilder = new CardBuilder()
                 .postalCode("60606");
 
-        JSONObject jsonCard = new JSONObject(cardBuilder.toJsonString()).getJSONObject(CREDIT_CARD_KEY);
+        JSONObject billingAddress = new JSONObject(cardBuilder.toJsonString())
+                .getJSONObject(CREDIT_CARD_KEY).getJSONObject(BILLING_ADDRESS_KEY);
 
-        assertFalse(jsonCard.getJSONObject("billingAddress").has("streetAddress"));
-        assertFalse(jsonCard.getJSONObject("billingAddress").has("locality"));
-        assertEquals("60606", jsonCard.getJSONObject("billingAddress").getString("postalCode"));
-        assertFalse(jsonCard.getJSONObject("billingAddress").has("region"));
-        assertFalse(jsonCard.getJSONObject("billingAddress").has("countryName"));
+        assertFalse(billingAddress.has("firstName"));
+        assertFalse(billingAddress.has("lastName"));
+        assertFalse(billingAddress.has("streetAddress"));
+        assertFalse(billingAddress.has("locality"));
+        assertEquals("60606", billingAddress.getString("postalCode"));
+        assertFalse(billingAddress.has("region"));
+        assertFalse(billingAddress.has("countryName"));
     }
 
     public void testUsesDefaultInfoForMetadata() throws JSONException {

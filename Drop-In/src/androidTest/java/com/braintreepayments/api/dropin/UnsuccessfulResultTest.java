@@ -1,115 +1,154 @@
 package com.braintreepayments.api.dropin;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.view.KeyEvent;
 
 import com.braintreepayments.api.Braintree;
-import com.braintreepayments.api.BraintreeTestUtils;
-import com.braintreepayments.api.TestClientTokenBuilder;
 import com.braintreepayments.api.exceptions.AuthenticationException;
 import com.braintreepayments.api.exceptions.AuthorizationException;
+import com.braintreepayments.api.exceptions.BraintreeException;
 import com.braintreepayments.api.exceptions.DownForMaintenanceException;
+import com.braintreepayments.api.exceptions.ErrorWithResponse;
 import com.braintreepayments.api.exceptions.ServerException;
 import com.braintreepayments.api.exceptions.UnexpectedException;
 import com.braintreepayments.api.exceptions.UpgradeRequiredException;
+import com.braintreepayments.testutils.TestClientTokenBuilder;
 
 import java.util.Map;
 
-import static com.braintreepayments.api.BraintreeTestUtils.injectBraintree;
-import static com.braintreepayments.api.BraintreeTestUtils.setUpActivityTest;
-import static com.braintreepayments.api.ui.Matchers.withId;
-import static com.braintreepayments.api.ui.WaitForActivityHelper.waitForActivity;
-import static com.braintreepayments.api.ui.ViewHelper.waitForView;
+import static com.braintreepayments.api.BraintreeTestUtils.postUnrecoverableErrorFromBraintree;
+import static com.braintreepayments.api.BraintreeTestUtils.setClientTokenExtraForTest;
+import static com.braintreepayments.api.BraintreeTestUtils.unexpectedExceptionThrowingApi;
+import static com.braintreepayments.api.TestDependencyInjector.injectBraintree;
+import static com.braintreepayments.testutils.ActivityResultHelper.getActivityResult;
+import static com.braintreepayments.testutils.ui.Matchers.withId;
+import static com.braintreepayments.testutils.ui.ViewHelper.waitForView;
+import static com.braintreepayments.testutils.ui.WaitForActivityHelper.waitForActivityToFinish;
 
 public class UnsuccessfulResultTest extends BraintreePaymentActivityTestCase {
 
     private Braintree mBraintree;
     private BraintreePaymentActivity mActivity;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-
-        String clientToken = new TestClientTokenBuilder().withPayPal().build();
-        mBraintree = injectBraintree(getInstrumentation().getContext(), clientToken);
-        setUpActivityTest(this, clientToken);
+    public void testReturnsServerErrorOnSetupException()
+            throws ErrorWithResponse, BraintreeException {
+        injectBraintree("test_client_token", unexpectedExceptionThrowingApi(mContext));
+        setClientTokenExtraForTest(this, "test_client_token");
         mActivity = getActivity();
 
-        waitForView(withId(R.id.bt_card_form_header));
+        waitForActivityToFinish(mActivity);
+        Map<String, Object> result = getActivityResult(mActivity);
+
+        Object exception = ((Intent) result.get("resultData"))
+                .getSerializableExtra(BraintreePaymentActivity.EXTRA_ERROR_MESSAGE);
+        assertEquals(BraintreePaymentActivity.BRAINTREE_RESULT_SERVER_ERROR,
+                result.get("resultCode"));
+        assertTrue(exception instanceof UnexpectedException);
+        assertEquals("Mocked HTTP request", ((UnexpectedException) exception).getMessage());
     }
 
     public void testReturnsDeveloperErrorOnAuthenticationException() {
-        BraintreeTestUtils
-                .postUnrecoverableErrorFromBraintree(mBraintree, new AuthenticationException());
+        setupActivityWithBraintree();
+        AuthenticationException exception = new AuthenticationException();
+        postUnrecoverableErrorFromBraintree(mBraintree, exception);
 
-        waitForActivity(mActivity);
-        Map<String, Object> result = BraintreeTestUtils.getActivityResult(mActivity);
+        waitForActivityToFinish(mActivity);
+        Map<String, Object> result = getActivityResult(mActivity);
 
         assertEquals(BraintreePaymentActivity.BRAINTREE_RESULT_DEVELOPER_ERROR,
                 result.get("resultCode"));
+        assertEquals(exception, ((Intent) result.get("resultData"))
+                .getSerializableExtra(BraintreePaymentActivity.EXTRA_ERROR_MESSAGE));
     }
 
     public void testReturnsDeveloperErrorOnAuthorizationException() {
-        BraintreeTestUtils
-                .postUnrecoverableErrorFromBraintree(mBraintree, new AuthorizationException());
+        setupActivityWithBraintree();
+        AuthorizationException exception = new AuthorizationException();
+        postUnrecoverableErrorFromBraintree(mBraintree, exception);
 
-        waitForActivity(mActivity);
-        Map<String, Object> result = BraintreeTestUtils.getActivityResult(mActivity);
+        waitForActivityToFinish(mActivity);
+        Map<String, Object> result = getActivityResult(mActivity);
 
         assertEquals(BraintreePaymentActivity.BRAINTREE_RESULT_DEVELOPER_ERROR,
                 result.get("resultCode"));
+        assertEquals(exception, ((Intent) result.get("resultData"))
+                .getSerializableExtra(BraintreePaymentActivity.EXTRA_ERROR_MESSAGE));
     }
 
     public void testReturnsDeveloperErrorOnUpgradeRequiredException() {
-        BraintreeTestUtils
-                .postUnrecoverableErrorFromBraintree(mBraintree, new UpgradeRequiredException());
+        setupActivityWithBraintree();
+        UpgradeRequiredException exception = new UpgradeRequiredException();
+        postUnrecoverableErrorFromBraintree(mBraintree, exception);
 
-        waitForActivity(mActivity);
-        Map<String, Object> result = BraintreeTestUtils.getActivityResult(mActivity);
+        waitForActivityToFinish(mActivity);
+        Map<String, Object> result = getActivityResult(mActivity);
 
         assertEquals(BraintreePaymentActivity.BRAINTREE_RESULT_DEVELOPER_ERROR,
                 result.get("resultCode"));
+        assertEquals(exception, ((Intent) result.get("resultData"))
+                .getSerializableExtra(BraintreePaymentActivity.EXTRA_ERROR_MESSAGE));
     }
 
     public void testReturnsServerErrorOnServerException() {
-        BraintreeTestUtils.postUnrecoverableErrorFromBraintree(mBraintree, new ServerException());
+        setupActivityWithBraintree();
+        ServerException exception = new ServerException();
+        postUnrecoverableErrorFromBraintree(mBraintree, exception);
 
-        waitForActivity(mActivity);
-        Map<String, Object> result = BraintreeTestUtils.getActivityResult(mActivity);
+        waitForActivityToFinish(mActivity);
+        Map<String, Object> result = getActivityResult(mActivity);
 
         assertEquals(BraintreePaymentActivity.BRAINTREE_RESULT_SERVER_ERROR,
                 result.get("resultCode"));
+        assertEquals(exception, ((Intent) result.get("resultData"))
+                .getSerializableExtra(BraintreePaymentActivity.EXTRA_ERROR_MESSAGE));
     }
 
     public void testReturnsServerUnavailableOnDownForMaintenanceException() {
-        BraintreeTestUtils
-                .postUnrecoverableErrorFromBraintree(mBraintree, new DownForMaintenanceException());
+        setupActivityWithBraintree();
+        DownForMaintenanceException exception = new DownForMaintenanceException();
+        postUnrecoverableErrorFromBraintree(mBraintree, exception);
 
-        waitForActivity(mActivity);
-        Map<String, Object> result = BraintreeTestUtils.getActivityResult(mActivity);
+        waitForActivityToFinish(mActivity);
+        Map<String, Object> result = getActivityResult(mActivity);
 
         assertEquals(BraintreePaymentActivity.BRAINTREE_RESULT_SERVER_UNAVAILABLE,
                 result.get("resultCode"));
+        assertEquals(exception, ((Intent) result.get("resultData"))
+                .getSerializableExtra(BraintreePaymentActivity.EXTRA_ERROR_MESSAGE));
     }
 
     public void testReturnsServerErrorOnUnexpectedException() {
-        BraintreeTestUtils
-                .postUnrecoverableErrorFromBraintree(mBraintree, new UnexpectedException());
+        setupActivityWithBraintree();
+        UnexpectedException exception = new UnexpectedException();
+        postUnrecoverableErrorFromBraintree(mBraintree, exception);
 
-        waitForActivity(mActivity);
-        Map<String, Object> result = BraintreeTestUtils.getActivityResult(mActivity);
+        waitForActivityToFinish(mActivity);
+        Map<String, Object> result = getActivityResult(mActivity);
 
         assertEquals(BraintreePaymentActivity.BRAINTREE_RESULT_SERVER_ERROR,
                 result.get("resultCode"));
+        assertEquals(exception, ((Intent) result.get("resultData"))
+                .getSerializableExtra(BraintreePaymentActivity.EXTRA_ERROR_MESSAGE));
     }
 
     public void testReturnsUserCanceledOnBackButtonPress() {
+        setupActivityWithBraintree();
         sendKeys(KeyEvent.KEYCODE_BACK);
 
-        waitForActivity(mActivity);
-        Map<String, Object> result = BraintreeTestUtils.getActivityResult(mActivity);
+        waitForActivityToFinish(mActivity);
+        Map<String, Object> result = getActivityResult(mActivity);
 
         assertEquals(Activity.RESULT_CANCELED, result.get("resultCode"));
+    }
 
+    /* helper */
+    private void setupActivityWithBraintree() {
+        String clientToken = new TestClientTokenBuilder().build();
+        mBraintree = injectBraintree(mContext, clientToken, clientToken);
+        setClientTokenExtraForTest(this, clientToken);
+        mActivity = getActivity();
+
+        waitForView(withId(R.id.bt_card_form_header));
     }
 }
